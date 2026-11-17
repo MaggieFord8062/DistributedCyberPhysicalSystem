@@ -73,10 +73,26 @@
                 let response = await fetch('/api/data');
                 let data = await response.json();
                 
-                document.getElementById('temp').innerText = data.temperature;
-                document.getElementById('hum').innerText = data.humidity;
-                document.getElementById('press').innerText = data.pressure;
-                document.getElementById('time').innerText = data.timestamp;
+                document.getElementById('temp').innerText =
+                    Number(data.temperature).toFixed(2);
+
+                document.getElementById('hum').innerText =
+                    Number(data.humidity).toFixed(2);
+
+                document.getElementById('press').innerText =
+                    Number(data.pressure).toFixed(2);
+                const timestamp = new Date(data.timestamp);
+
+                document.getElementById('time').innerText =
+                    timestamp.toLocaleString('en-US', {
+                        month: 'long',
+                        day: 'numeric',
+                        year: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: true
+                    });
 
                 let statusBox = document.getElementById('status-box');
                 let statusText = document.getElementById('status-text');
