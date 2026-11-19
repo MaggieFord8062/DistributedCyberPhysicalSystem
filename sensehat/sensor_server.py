@@ -5,30 +5,31 @@ import socket
 import json
 import time
 
+from sensor_config import get_reporting_interval
+
 sense = SenseHat()
 
 HOST = "0.0.0.0"
 PORT = 5091
 
-# Create the TCP server
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
 server.bind((HOST, PORT))
 server.listen(1)
 
 print(f"Sensor server listening on port {PORT}...")
+print("Waiting for HMI connection...")
 
 try:
     while True:
-        # Wait for the HMI Raspberry Pi to connect
         connection, address = server.accept()
-
         print(f"HMI connected: {address}")
 
         try:
             while True:
-                # Read sensor values
+                # Read the latest interval from shared settings
+                interval = get_reporting_interval()
+
                 data = {
                     "timestamp": datetime.now().isoformat(),
                     "temperature": sense.get_temperature(),
@@ -36,24 +37,25 @@ try:
                     "pressure": sense.get_pressure()
                 }
 
-                # Convert readings to JSON
                 message = json.dumps(data) + "\n"
-
-                # Send readings to the HMI
                 connection.sendall(message.encode("utf-8"))
 
-                print("Sent:", message.strip())
+                print(
+                    f"Sent sensor data | "
+                    f"Temperature: {data['temperature']:.2f} °C | "
+                    f"Interval: {interval} seconds"
+                )
 
-                time.sleep(1)
+                time.sleep(interval)
 
-        except (BrokenPipeError, ConnectionResetError):
+        except (BrokenPipeError, ConnectionResetError, OSError):
             print("HMI disconnected.")
 
         finally:
             connection.close()
 
 except KeyboardInterrupt:
-    print("Sensor server stopped.")
+    print("\nSensor server stopped.")
 
 finally:
     server.close()
