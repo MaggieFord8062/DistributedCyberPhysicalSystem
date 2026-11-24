@@ -11,15 +11,21 @@ app = Flask(__name__)
 SENSOR_HOST = "192.168.5.83"
 SENSOR_PORT = 5091
 
+HEARTBEAT_PORT = 5092
+
 latest_data = {
     "timestamp": "Waiting for data...",
     "temperature": "--",
     "humidity": "--",
     "pressure": "--",
     "status": "OFFLINE",
+    "device_status": "OFFLINE",
+    "heartbeat_timestamp": "Waiting for heartbeat..."
 }
 
 last_received_time = None
+last_heartbeat_time = None
+
 data_lock = threading.Lock()
 
 
@@ -75,11 +81,49 @@ def start_sensor_receiver():
             ):
                 latest_data["status"] = "OFFLINE"
 
-        print("Retrying connection in 2 seconds...")
+        print("Retrying sensor connection in 2 seconds...")
         time.sleep(2)
 
 
-# Get the latest readings and check sensor status
+# Receive UDP heartbeat messages from the Sense HAT Pi
+def start_heartbeat_receiver():
+
+    global last_heartbeat_time
+
+    heartbeat_socket = socket.socket(
+        socket.AF_INET,
+        socket.SOCK_DGRAM
+    )
+
+    heartbeat_socket.setsockopt(
+        socket.SOL_SOCKET,
+        socket.SO_REUSEADDR,
+        1
+    )
+
+    heartbeat_socket.bind(("0.0.0.0", HEARTBEAT_PORT))
+
+    print(f"Heartbeat receiver listening on UDP port {HEARTBEAT_PORT}...")
+
+    while True:
+        try:
+            message, address = heartbeat_socket.recvfrom(4096)
+
+            payload = json.loads(message.decode("utf-8"))
+
+            with data_lock:
+                last_heartbeat_time = time.monotonic()
+
+                latest_data["device_status"] = "ONLINE"
+                latest_data["heartbeat_timestamp"] = payload.get("timestamp")
+
+            print("Received heartbeat:", payload)
+
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError) as error:
+            print(f"Heartbeat receive error: {error}")
+
+
+# Get the latest readings and check both statuses
 def get_current_data():
 
     with data_lock:
@@ -90,6 +134,12 @@ def get_current_data():
             or time.monotonic() - last_received_time > 6
         ):
             data["status"] = "OFFLINE"
+
+        if (
+            last_heartbeat_time is None
+            or time.monotonic() - last_heartbeat_time > 6
+        ):
+            data["device_status"] = "OFFLINE"
 
         return data
 
@@ -103,7 +153,7 @@ def index():
     )
 
 
-# Provide sensor readings to dashboard JavaScript
+# Provide sensor readings and statuses to dashboard JavaScript
 @app.route("/api/data")
 def get_data():
     return jsonify(get_current_data())
@@ -116,7 +166,13 @@ if __name__ == "__main__":
         daemon=True
     )
 
+    heartbeat_thread = threading.Thread(
+        target=start_heartbeat_receiver,
+        daemon=True
+    )
+
     receiver_thread.start()
+    heartbeat_thread.start()
 
     app.run(
         host="0.0.0.0",

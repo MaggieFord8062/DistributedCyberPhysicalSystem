@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -30,7 +31,7 @@
         .card h3 { margin: 0 0 10px 0; color: #eeeeee; font-size: 1.2rem; }
         .value { font-size: 2.5rem; font-weight: bold; color: #00adb5; }
         .status-box {
-            margin-top: 30px;
+            margin: 15px;
             font-size: 1.2rem;
             padding: 10px;
             border-radius: 5px;
@@ -44,9 +45,15 @@
 <body>
 
     <h1>Sensor Monitoring HMI</h1>
-    
-    <div id="status-box" class="status-box OFFLINE">
-        Sense HAT Status: <span id="status-text">OFFLINE</span>
+
+    <div>
+        <div id="device-status-box" class="status-box OFFLINE">
+            Device Status: <span id="device-status-text">OFFLINE</span>
+        </div>
+
+        <div id="sensor-status-box" class="status-box OFFLINE">
+            Sensor Status: <span id="sensor-status-text">OFFLINE</span>
+        </div>
     </div>
 
     <div class="card-container">
@@ -72,33 +79,50 @@
             try {
                 let response = await fetch('/api/data');
                 let data = await response.json();
-                
-                document.getElementById('temp').innerText =
-                    Number(data.temperature).toFixed(2);
 
-                document.getElementById('hum').innerText =
-                    Number(data.humidity).toFixed(2);
+                if (data.temperature !== "--") {
+                    document.getElementById('temp').innerText =
+                        Number(data.temperature).toFixed(2);
+                }
 
-                document.getElementById('press').innerText =
-                    Number(data.pressure).toFixed(2);
-                const timestamp = new Date(data.timestamp);
+                if (data.humidity !== "--") {
+                    document.getElementById('hum').innerText =
+                        Number(data.humidity).toFixed(2);
+                }
 
-                document.getElementById('time').innerText =
-                    timestamp.toLocaleString('en-US', {
-                        month: 'long',
-                        day: 'numeric',
-                        year: 'numeric',
-                        hour: 'numeric',
-                        minute: '2-digit',
-                        second: '2-digit',
-                        hour12: true
-                    });
+                if (data.pressure !== "--") {
+                    document.getElementById('press').innerText =
+                        Number(data.pressure).toFixed(2);
+                }
 
-                let statusBox = document.getElementById('status-box');
-                let statusText = document.getElementById('status-text');
-                
-                statusBox.className = "status-box " + data.status;
-                statusText.innerText = data.status;
+                if (data.timestamp !== "Waiting for data...") {
+                    const timestamp = new Date(data.timestamp);
+                    document.getElementById('time').innerText =
+                        timestamp.toLocaleString('en-US', {
+                            month: 'long',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: true
+                        });
+                }
+
+                // Device status comes from UDP heartbeat (Socket 2)
+                let deviceStatus = data.device_status;
+                document.getElementById('device-status-box').className =
+                    "status-box " + deviceStatus;
+                document.getElementById('device-status-text').innerText =
+                    deviceStatus;
+
+                // Sensor status comes from TCP sensor readings (Socket 1)
+                let sensorStatus = data.status;
+                document.getElementById('sensor-status-box').className =
+                    "status-box " + sensorStatus;
+                document.getElementById('sensor-status-text').innerText =
+                    sensorStatus;
+
             } catch (err) {
                 console.error("Failed to fetch sensor data", err);
             }
